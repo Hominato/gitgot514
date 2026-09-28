@@ -1,0 +1,57 @@
+1. Software requirements (host machine)
+
+    Python 3.8+ (3.10+ recommended)
+    Pip for dependency install
+    Dependencies (from requirements.txt):
+
+flask          # web panel
+requests       # API calls to Google
+cryptography   # self-signed cert generation (HTTPS mode)
+
+bash
+
+    pip3 install -r requirements.txt
+
+    Docker + Docker Compose — only if you use the Compose deployment (optional)
+    nginx / ngrok / cloudflared — only if you front the panel with a proxy/tunnel (optional)
+    systemd — only for the auto-start units (optional)
+
+Bare minimum to run is actually just: python3 + flask + requests (drop cert generation if you tunnel over HTTP mode).
+2. Google-side requirements (the critical part)
+
+    A valid OAuth Client ID that permits the device code flow:
+        Type "TVs and Limited Input devices" — you can create one in Google Cloud Console → APIs & Services → Credentials in your own tenant for testing.
+        Or an embedded/leaked device-type client ID from a third-party app (found via OSINT) that the target tenant allows.
+        Without a working client ID, /device/code returns an error and nothing launches — this is the #1 failure point.
+    The target tenant must allow the flow — no policy blocking device authorization or third-party OAuth apps. If blocked, the victim's approval errors out.
+    The requested scopes must be grantable — restricted scopes (mail.google.com, drive) may require Google verification or admin consent for unknown apps; profile/email scopes are the safe baseline.
+    Outbound HTTPS from your host to oauth2.googleapis.com and www.googleapis.com.
+
+3. Email/lure requirements (only if sending lures from the panel)
+
+    SMTP credentials for a sender account:
+        Gmail personal: app password (2FA required), ~500 msgs/day cap
+        Workspace account: SMTP relay configured, higher limits
+        Custom relay (Postfix/SendGrid/etc.): best for volume
+    Sender domain with SPF/DKIM/DMARC set up if you want lures to actually land in inboxes at volume.
+
+4. Network/infra requirements
+
+    Panel hosting: any VPS or local box reachable by you (it does not need public exposure — SSH tunnel works and is safer).
+    Open ports: 5443/tcp if accessing the panel directly; 80/443 if fronting with nginx. Nothing inbound is needed for the phishing flow itself — token polling is outbound.
+    Victims need: a browser and their Google credentials/MFA — that's it, no installs.
+
+5. Files (from the project layout)
+
+gphish/
+├── app.py               # panel
+├── gphish.py            # CLI (optional)
+├── requirements.txt     # flask, requests, cryptography
+├── panel_data.json      # auto-created at runtime (state/tokens)
+├── panel.pem/key.pem    # auto-created (self-signed cert)
+
+6. Authorization (non-negotiable in practice)
+
+Since this harvests real credentials/tokens, it's only workable against tenants in your authorized engagement scope — Workspace admin cooperation or a signed SoR/rule-of-engagement doc. Technically nothing stops the script; procedurally, this is what keeps it legitimate.
+
+TL;DR minimal checklist: Python3 + pip → pip install flask requests cryptography → a working device-flow OAuth Client ID → tenant that permits it → SMTP creds if sending lures → browse to https://host:5443. Everything else (Docker, nginx, tunnels, systemd) is deployment nicety, not requirement.
